@@ -4,8 +4,20 @@ import { Container, Heading, Text } from "@radix-ui/themes";
 const CROWD_WALRUS_OBJECT_ID =
   "0x183386f2aa18f615294d69ea7e766dd76a3305400866e3c3025c30b07af2dd61";
 
+const REGISTERED_SUBDOMAINS_TABLE_ID =
+  "0x37c3fae6f5651e700322136473de457177b3e4107a280f4cff1493c1926ce696";
+
+interface ProjectData {
+  id: { id: string };
+  admin_id: string;
+  name: string;
+  description: string;
+  subdomain_name: string;
+  created_at: string;
+}
+
 export function AllProjects() {
-  // Get CrowdWalrus object to check validation status and registered projects count
+  // Get CrowdWalrus object to check validation status
   const {
     data: crowdWalrusData,
     isPending: isCrowdWalrusPending,
@@ -17,21 +29,74 @@ export function AllProjects() {
     },
   });
 
+  // Query all dynamic fields from the registered_subdomains table to get project IDs
+  const {
+    data: dynamicFieldsData,
+    isPending: isDynamicFieldsPending,
+    error: dynamicFieldsError,
+  } = useSuiClientQuery("getDynamicFields", {
+    parentId: REGISTERED_SUBDOMAINS_TABLE_ID,
+  });
+
+  // First, get the dynamic field objects to access their values (the actual project IDs)
+  const dynamicFieldIds =
+    dynamicFieldsData?.data?.map((field: any) => field.objectId) || [];
+
+  const {
+    data: dynamicFieldObjectsData,
+    isPending: isDynamicFieldObjectsPending,
+    error: dynamicFieldObjectsError,
+  } = useSuiClientQuery(
+    "multiGetObjects",
+    {
+      ids: dynamicFieldIds,
+      options: {
+        showContent: true,
+      },
+    },
+    {
+      enabled: dynamicFieldIds.length > 0,
+    },
+  );
+
+  // Extract the actual project IDs from the dynamic field values
+  const projectIds =
+    dynamicFieldObjectsData
+      ?.map((fieldObj: any) => {
+        const fields = fieldObj.data?.content?.fields;
+        console.log("Dynamic field object fields:", fields);
+        // The project ID is stored in the 'value' field of each dynamic field
+        return fields?.value;
+      })
+      .filter(Boolean) || [];
+
+  console.log("Actual project IDs from values:", projectIds);
+
+  // Fetch all project details
+  const {
+    data: projectsData,
+    isPending: isProjectsPending,
+    error: projectsError,
+  } = useSuiClientQuery(
+    "multiGetObjects",
+    {
+      ids: projectIds,
+      options: {
+        showContent: true,
+        showType: true,
+      },
+    },
+    {
+      enabled: projectIds.length > 0,
+    },
+  );
+
   // Get list of validated project IDs
   const validatedProjectIds =
     crowdWalrusData?.data?.content?.dataType === "moveObject"
       ? (crowdWalrusData.data.content.fields as any)?.validated_projects_list ||
         []
       : [];
-
-  // Get count of registered projects from the table
-  const registeredCount =
-    crowdWalrusData?.data?.content?.dataType === "moveObject"
-      ? parseInt(
-          (crowdWalrusData.data.content.fields as any)?.registered_subdomains
-            ?.fields?.size || "0",
-        )
-      : 0;
 
   if (crowdWalrusError) {
     return (
@@ -40,16 +105,50 @@ export function AllProjects() {
         <Text style={{ color: "red" }}>
           Error loading CrowdWalrus: {crowdWalrusError.message}
         </Text>
-        <br />
-        <Text style={{ color: "gray", fontSize: "12px" }}>
-          Make sure the CrowdWalrus object ID is correct:{" "}
-          {CROWD_WALRUS_OBJECT_ID}
+      </Container>
+    );
+  }
+
+  if (dynamicFieldsError) {
+    return (
+      <Container my="2">
+        <Heading mb="2">All Projects</Heading>
+        <Text style={{ color: "red" }}>
+          Error loading dynamic fields: {dynamicFieldsError.message}
         </Text>
       </Container>
     );
   }
 
-  if (isCrowdWalrusPending) {
+  if (dynamicFieldObjectsError) {
+    return (
+      <Container my="2">
+        <Heading mb="2">All Projects</Heading>
+        <Text style={{ color: "red" }}>
+          Error loading dynamic field objects:{" "}
+          {dynamicFieldObjectsError.message}
+        </Text>
+      </Container>
+    );
+  }
+
+  if (projectsError) {
+    return (
+      <Container my="2">
+        <Heading mb="2">All Projects</Heading>
+        <Text style={{ color: "red" }}>
+          Error loading project details: {projectsError.message}
+        </Text>
+      </Container>
+    );
+  }
+
+  if (
+    isCrowdWalrusPending ||
+    isDynamicFieldsPending ||
+    isDynamicFieldObjectsPending ||
+    isProjectsPending
+  ) {
     return (
       <Container my="2">
         <Heading mb="2">All Projects</Heading>
@@ -58,32 +157,30 @@ export function AllProjects() {
     );
   }
 
+  // Process project data - now we should have actual Project objects
+  const projects =
+    projectsData
+      ?.filter((obj) => obj.data?.content?.dataType === "moveObject")
+      .map((obj) => {
+        const fields = (obj.data?.content as any)?.fields as ProjectData;
+        const isValidated = validatedProjectIds.includes(obj.data?.objectId);
+        return {
+          objectId: obj.data?.objectId,
+          id: fields.id,
+          admin_id: fields.admin_id,
+          name: fields.name,
+          description: fields.description,
+          subdomain_name: fields.subdomain_name,
+          created_at: fields.created_at,
+          isValidated,
+        };
+      }) || [];
+
   return (
     <Container my="2">
-      <Heading mb="2">All Projects</Heading>
+      <Heading mb="2">All Projects ({projects.length} total)</Heading>
 
-      <div
-        style={{
-          border: "1px solid #ccc",
-          padding: "15px",
-          marginBottom: "15px",
-          // backgroundColor: "#f9f9f9",
-        }}
-      >
-        <Text>
-          <strong>Project Statistics</strong>
-        </Text>
-        <br />
-        <Text>📊 Total Registered Projects: {registeredCount}</Text>
-        <br />
-        <Text>✅ Validated Projects: {validatedProjectIds.length}</Text>
-        <br />
-        <Text>
-          ⏳ Pending Validation: {registeredCount - validatedProjectIds.length}
-        </Text>
-      </div>
-
-      {registeredCount === 0 ? (
+      {projects.length === 0 ? (
         <div>
           <Text>No projects found</Text>
           <br />
@@ -93,45 +190,84 @@ export function AllProjects() {
         </div>
       ) : (
         <div>
-          <Text
-            style={{ color: "orange", fontSize: "14px", marginBottom: "10px" }}
+          <div
+            style={{
+              border: "1px solid #ccc",
+              padding: "15px",
+              marginBottom: "15px",
+            }}
           >
-            ⚠️ Note: Individual project details require querying the blockchain
-            by project ID. The registered projects table contains{" "}
-            {registeredCount} project(s), but we can only show validated
-            projects directly from the validated_projects_list.
-          </Text>
+            <Text>
+              <strong>Project Statistics</strong>
+            </Text>
+            <br />
+            <Text>📊 Total Projects: {projects.length}</Text>
+            <br />
+            <Text>
+              ✅ Validated Projects:{" "}
+              {projects.filter((p) => p.isValidated).length}
+            </Text>
+            <br />
+            <Text>
+              ⏳ Pending Validation:{" "}
+              {projects.filter((p) => !p.isValidated).length}
+            </Text>
+          </div>
 
-          {validatedProjectIds.length > 0 && (
-            <div>
+          {projects.map((project, index) => (
+            <div
+              key={project.objectId}
+              style={{
+                border: project.isValidated
+                  ? "2px solid green"
+                  : "1px solid orange",
+                padding: "15px",
+                marginBottom: "15px",
+                // backgroundColor: project.isValidated ? "#f0f8f0" : "#fff8f0",
+              }}
+            >
               <Text>
-                <strong>Validated Project IDs:</strong>
-              </Text>
-              {validatedProjectIds.map((id: string, index: number) => (
-                <div
-                  key={id}
+                <strong>Project #{index + 1}</strong>{" "}
+                <span
                   style={{
-                    border: "2px solid green",
-                    padding: "10px",
-                    marginTop: "10px",
-                    // backgroundColor: "#f0f8f0"
+                    marginLeft: "10px",
+                    color: project.isValidated ? "green" : "orange",
+                    fontSize: "12px",
                   }}
                 >
-                  <Text>
-                    <strong>Validated Project #{index + 1}</strong> ✅
-                  </Text>
-                  <br />
-                  <Text>
-                    <strong>Object ID:</strong> {id}
-                  </Text>
-                  <br />
-                  <Text style={{ color: "gray", fontSize: "12px" }}>
-                    To see full project details, query this object ID directly
-                  </Text>
-                </div>
-              ))}
+                  [
+                  {project.isValidated
+                    ? "✓ VALIDATED"
+                    : "⏳ PENDING VALIDATION"}
+                  ]
+                </span>
+              </Text>
+              <br />
+              <Text>
+                <strong>Name:</strong> {project.name}
+              </Text>
+              <br />
+              <Text>
+                <strong>Description:</strong> {project.description}
+              </Text>
+              <br />
+              <Text>
+                <strong>Subdomain:</strong> {project.subdomain_name}
+              </Text>
+              <br />
+              <Text>
+                <strong>Object ID:</strong> {project.objectId}
+              </Text>
+              <br />
+              <Text>
+                <strong>Admin ID:</strong> {project.admin_id}
+              </Text>
+              <br />
+              <Text>
+                <strong>Created At (Epoch):</strong> {project.created_at}
+              </Text>
             </div>
-          )}
+          ))}
         </div>
       )}
     </Container>
