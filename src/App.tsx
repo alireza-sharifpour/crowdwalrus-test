@@ -2,6 +2,7 @@ import { ConnectButton } from "@mysten/dapp-kit";
 import { Box, Container, Flex, Heading } from "@radix-ui/themes";
 import { WalletStatus } from "./WalletStatus";
 import { CreateProject } from "./CreateProject";
+import { AllProjects } from "./AllProjects";
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
         >
           <WalletStatus />
           <CreateProject />
+          <AllProjects />
         </Container>
       </Container>
     </>
