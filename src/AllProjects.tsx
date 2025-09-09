@@ -4,9 +4,6 @@ import { Container, Heading, Text } from "@radix-ui/themes";
 const CROWD_WALRUS_OBJECT_ID =
   "0x183386f2aa18f615294d69ea7e766dd76a3305400866e3c3025c30b07af2dd61";
 
-const REGISTERED_SUBDOMAINS_TABLE_ID =
-  "0x37c3fae6f5651e700322136473de457177b3e4107a280f4cff1493c1926ce696";
-
 interface ProjectData {
   id: { id: string };
   admin_id: string;
@@ -29,14 +26,34 @@ export function AllProjects() {
     },
   });
 
+  // Extract the registered_subdomains table ID dynamically from CrowdWalrus object
+  const registeredSubdomainsTableId =
+    crowdWalrusData?.data?.content?.dataType === "moveObject"
+      ? (crowdWalrusData.data.content.fields as any)?.registered_subdomains
+          ?.fields?.id?.id
+      : null;
+
+  // Get list of validated project IDs
+  const validatedProjectIds =
+    crowdWalrusData?.data?.content?.dataType === "moveObject"
+      ? (crowdWalrusData.data.content.fields as any)?.validated_projects_list ||
+        []
+      : [];
+
   // Query all dynamic fields from the registered_subdomains table to get project IDs
   const {
     data: dynamicFieldsData,
     isPending: isDynamicFieldsPending,
     error: dynamicFieldsError,
-  } = useSuiClientQuery("getDynamicFields", {
-    parentId: REGISTERED_SUBDOMAINS_TABLE_ID,
-  });
+  } = useSuiClientQuery(
+    "getDynamicFields",
+    {
+      parentId: registeredSubdomainsTableId,
+    },
+    {
+      enabled: !!registeredSubdomainsTableId,
+    },
+  );
 
   // First, get the dynamic field objects to access their values (the actual project IDs)
   const dynamicFieldIds =
@@ -64,13 +81,10 @@ export function AllProjects() {
     dynamicFieldObjectsData
       ?.map((fieldObj: any) => {
         const fields = fieldObj.data?.content?.fields;
-        console.log("Dynamic field object fields:", fields);
         // The project ID is stored in the 'value' field of each dynamic field
         return fields?.value;
       })
       .filter(Boolean) || [];
-
-  console.log("Actual project IDs from values:", projectIds);
 
   // Fetch all project details
   const {
@@ -90,13 +104,6 @@ export function AllProjects() {
       enabled: projectIds.length > 0,
     },
   );
-
-  // Get list of validated project IDs
-  const validatedProjectIds =
-    crowdWalrusData?.data?.content?.dataType === "moveObject"
-      ? (crowdWalrusData.data.content.fields as any)?.validated_projects_list ||
-        []
-      : [];
 
   if (crowdWalrusError) {
     return (
