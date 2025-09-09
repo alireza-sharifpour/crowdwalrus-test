@@ -1,6 +1,14 @@
-import { useSuiClientQuery } from "@mysten/dapp-kit";
-import { Container, Heading, Text } from "@radix-ui/themes";
+import {
+  useSuiClientQuery,
+  useCurrentAccount,
+  useSignAndExecuteTransaction,
+} from "@mysten/dapp-kit";
+import { Container, Heading, Text, Button } from "@radix-ui/themes";
+import { Transaction } from "@mysten/sui/transactions";
+import { useState } from "react";
 
+const PACKAGE_ID =
+  "0x84d7857ed6aa6c2e4b7a9fa7600f0bc51a114437f35c10dd8cf5d76f735ccea7";
 const CROWD_WALRUS_OBJECT_ID =
   "0x183386f2aa18f615294d69ea7e766dd76a3305400866e3c3025c30b07af2dd61";
 
@@ -14,6 +22,12 @@ interface ProjectData {
 }
 
 export function AllProjects() {
+  const account = useCurrentAccount();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const [validatingProject, setValidatingProject] = useState<string | null>(
+    null,
+  );
+
   // Get CrowdWalrus object to check validation status
   const {
     data: crowdWalrusData,
@@ -105,6 +119,100 @@ export function AllProjects() {
     },
   );
 
+  // Check if current account has ValidateCap
+  const { data: userObjectsData, isPending: isUserObjectsPending } =
+    useSuiClientQuery(
+      "getOwnedObjects",
+      {
+        owner: account?.address || "",
+        filter: {
+          StructType: `${PACKAGE_ID}::manager::ValidateCap`,
+        },
+        options: {
+          showContent: true,
+        },
+      },
+      {
+        enabled: !!account?.address,
+      },
+    );
+  console.log("userObjectsData", userObjectsData);
+  // Find ValidateCap that matches our CrowdWalrus
+  const validateCap = userObjectsData?.data?.find((obj) => {
+    if (obj.data?.content?.dataType === "moveObject") {
+      const fields = obj.data.content.fields as any;
+      return fields.crowd_walrus_id === CROWD_WALRUS_OBJECT_ID;
+    }
+    return false;
+  });
+
+  const canValidate = !!validateCap;
+
+  // Validation functions
+  const handleValidateProject = (projectObjectId: string) => {
+    if (!validateCap || !account) return;
+
+    setValidatingProject(projectObjectId);
+
+    const tx = new Transaction();
+
+    tx.moveCall({
+      package: PACKAGE_ID,
+      module: "manager",
+      function: "validate_project",
+      arguments: [
+        tx.object(CROWD_WALRUS_OBJECT_ID),
+        tx.object(validateCap.data?.objectId!),
+        tx.object(projectObjectId),
+      ],
+    });
+
+    signAndExecute(
+      { transaction: tx },
+      {
+        onSuccess: () => {
+          setValidatingProject(null);
+          // Optionally refresh data or show success message
+        },
+        onError: () => {
+          setValidatingProject(null);
+        },
+      },
+    );
+  };
+
+  const handleUnvalidateProject = (projectObjectId: string) => {
+    if (!validateCap || !account) return;
+
+    setValidatingProject(projectObjectId);
+
+    const tx = new Transaction();
+
+    tx.moveCall({
+      package: PACKAGE_ID,
+      module: "manager",
+      function: "unvalidate_project",
+      arguments: [
+        tx.object(CROWD_WALRUS_OBJECT_ID),
+        tx.object(validateCap.data?.objectId!),
+        tx.object(projectObjectId),
+      ],
+    });
+
+    signAndExecute(
+      { transaction: tx },
+      {
+        onSuccess: () => {
+          setValidatingProject(null);
+          // Optionally refresh data or show success message
+        },
+        onError: () => {
+          setValidatingProject(null);
+        },
+      },
+    );
+  };
+
   if (crowdWalrusError) {
     return (
       <Container my="2">
@@ -154,7 +262,8 @@ export function AllProjects() {
     isCrowdWalrusPending ||
     isDynamicFieldsPending ||
     isDynamicFieldObjectsPending ||
-    isProjectsPending
+    isProjectsPending ||
+    isUserObjectsPending
   ) {
     return (
       <Container my="2">
@@ -273,6 +382,47 @@ export function AllProjects() {
               <Text>
                 <strong>Created At (Epoch):</strong> {project.created_at}
               </Text>
+
+              {/* Validation buttons - only show if user has ValidateCap */}
+              {canValidate && (
+                <div style={{ marginTop: "15px" }}>
+                  {project.isValidated ? (
+                    <Button
+                      onClick={() => handleUnvalidateProject(project.objectId!)}
+                      disabled={validatingProject === project.objectId}
+                      style={{
+                        backgroundColor: "orange",
+                        color: "white",
+                        cursor:
+                          validatingProject === project.objectId
+                            ? "not-allowed"
+                            : "pointer",
+                      }}
+                    >
+                      {validatingProject === project.objectId
+                        ? "Unvalidating..."
+                        : "Unvalidate Project"}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handleValidateProject(project.objectId!)}
+                      disabled={validatingProject === project.objectId}
+                      style={{
+                        backgroundColor: "green",
+                        color: "white",
+                        cursor:
+                          validatingProject === project.objectId
+                            ? "not-allowed"
+                            : "pointer",
+                      }}
+                    >
+                      {validatingProject === project.objectId
+                        ? "Validating..."
+                        : "Validate Project"}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
