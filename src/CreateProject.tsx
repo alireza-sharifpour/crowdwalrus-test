@@ -2,9 +2,7 @@ import { useState } from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { Container, Flex, Heading, Text, Button } from "@radix-ui/themes";
-
-const PACKAGE_ID = "0x84d7857ed6aa6c2e4b7a9fa7600f0bc51a114437f35c10dd8cf5d76f735ccea7";
-const CROWD_WALRUS_OBJECT_ID = "0x183386f2aa18f615294d69ea7e766dd76a3305400866e3c3025c30b07af2dd61";
+import { PACKAGE_ID, CROWD_WALRUS_OBJECT_ID } from "./config";
 
 export function CreateProject() {
   const account = useCurrentAccount();
