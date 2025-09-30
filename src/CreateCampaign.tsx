@@ -15,7 +15,7 @@ import {
 
 type MetadataItem = { key: string; value: string };
 
-export function CreateProject() {
+export function CreateCampaign() {
   const account = useCurrentAccount();
   const {
     mutate: signAndExecute,
@@ -89,7 +89,7 @@ export function CreateProject() {
 
   return (
     <Container my="2">
-      <Heading mb="2">Create Project</Heading>
+      <Heading mb="2">Create Campaign</Heading>
 
       <form onSubmit={handleSubmit}>
         <Flex direction="column" gap="2">
@@ -226,14 +226,14 @@ export function CreateProject() {
             disabled={isPending}
             style={{ marginTop: "10px" }}
           >
-            {isPending ? "Creating..." : "Create Project"}
+            {isPending ? "Creating..." : "Create Campaign"}
           </Button>
         </Flex>
       </form>
 
       {isSuccess && (
         <Text style={{ color: "green", marginTop: "10px" }}>
-          Project created successfully!
+          Campaign created successfully!
         </Text>
       )}
 

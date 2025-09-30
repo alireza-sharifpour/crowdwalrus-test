@@ -1,8 +1,8 @@
 import { ConnectButton } from "@mysten/dapp-kit";
 import { Box, Container, Flex, Heading } from "@radix-ui/themes";
 import { WalletStatus } from "./WalletStatus";
-import { CreateProject } from "./CreateProject";
-import { AllProjects } from "./AllProjects";
+import { CreateCampaign } from "./CreateCampaign";
+import { AllCampaigns } from "./AllCampaigns";
 
 function App() {
   return (
@@ -32,8 +32,8 @@ function App() {
           style={{ background: "var(--gray-a2)", minHeight: 500 }}
         >
           <WalletStatus />
-          <CreateProject />
-          <AllProjects />
+          <CreateCampaign />
+          <AllCampaigns />
         </Container>
       </Container>
     </>
