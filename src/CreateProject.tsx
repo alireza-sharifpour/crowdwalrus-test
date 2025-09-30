@@ -13,6 +13,8 @@ import {
   SUINS_OBJECT_ID,
 } from "./config";
 
+type MetadataItem = { key: string; value: string };
+
 export function CreateProject() {
   const account = useCurrentAccount();
   const {
@@ -25,7 +27,7 @@ export function CreateProject() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [subdomainName, setSubdomainName] = useState("");
-  const [metadata, setMetadata] = useState<Record<string, string>>({});
+  const [metadata, setMetadata] = useState<MetadataItem[]>([]);
   const [startData, setStartData] = useState<number>(0);
   const [endData, setEndData] = useState<number>(1000);
 
@@ -51,8 +53,14 @@ export function CreateProject() {
         tx.pure.string(name),
         tx.pure.string(description),
         tx.pure.string(subdomainName),
-        tx.pure.vector("string", Object.keys(metadata)),
-        tx.pure.vector("string", Object.values(metadata)),
+        tx.pure.vector(
+          "string",
+          metadata.map((item) => item.key),
+        ),
+        tx.pure.vector(
+          "string",
+          metadata.map((item) => item.value),
+        ),
         tx.pure.u64(startData),
         tx.pure.u64(endData),
       ],
@@ -65,6 +73,7 @@ export function CreateProject() {
           setName("");
           setDescription("");
           setSubdomainName("");
+          setMetadata([]);
         },
       },
     );
@@ -134,21 +143,15 @@ export function CreateProject() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(metadata).map(([key, value], idx) => (
-                  <tr key={key + idx}>
+                {metadata.map((item, idx) => (
+                  <tr key={idx}>
                     <td style={{ padding: "4px" }}>
                       <input
                         type="text"
-                        value={key}
+                        value={item.key}
                         onChange={(e) => {
-                          const newKey = e.target.value;
-                          if (!newKey) return;
-                          // Avoid duplicate keys
-                          if (metadata.hasOwnProperty(newKey)) return;
-                          const newMetadata = { ...metadata };
-                          const oldValue = newMetadata[key as string];
-                          delete newMetadata[key];
-                          newMetadata[newKey] = oldValue;
+                          const newMetadata = [...metadata];
+                          newMetadata[idx].key = e.target.value;
                           setMetadata(newMetadata);
                         }}
                         style={{ width: "100%", padding: "4px" }}
@@ -157,10 +160,13 @@ export function CreateProject() {
                     <td style={{ padding: "4px" }}>
                       <input
                         type="text"
-                        value={value}
+                        value={item.value}
                         onChange={(e) => {
-                          const newMetadata = { ...metadata };
-                          newMetadata[key] = e.target.value;
+                          const newMetadata = [...metadata];
+                          newMetadata[idx] = {
+                            ...newMetadata[idx],
+                            value: e.target.value,
+                          };
                           setMetadata(newMetadata);
                         }}
                         style={{ width: "100%", padding: "4px" }}
@@ -172,8 +178,9 @@ export function CreateProject() {
                         color="red"
                         variant="soft"
                         onClick={() => {
-                          const newMetadata = { ...metadata };
-                          delete newMetadata[key];
+                          const newMetadata = metadata.filter(
+                            (_, i) => i !== idx,
+                          );
                           setMetadata(newMetadata);
                         }}
                         style={{ padding: "2px 8px" }}
@@ -188,7 +195,7 @@ export function CreateProject() {
             <Button
               type="button"
               variant="soft"
-              onClick={() => setMetadata({ ...metadata, "": "" })}
+              onClick={() => setMetadata([...metadata, { key: "", value: "" }])}
               style={{ marginTop: "4px" }}
             >
               Add Metadata
